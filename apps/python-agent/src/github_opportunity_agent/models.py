@@ -17,9 +17,21 @@ class RepoCandidate(BaseModel):
 class AgentMessage(BaseModel):
     role: str
     content: str
+    message_type: str | None = None
+    timestamp: str | None = None
+    id: str | None = None
+    parent_id: str | None = None
+
+
+class AgentState(BaseModel):
+    messages: list[AgentMessage] = Field(default_factory=list)
+    status: str = "idle"
+    turn_number: int = 0
 
 
 class AgentRunResult(BaseModel):
     input_text: str
     action: str
     output_text: str
+    success: bool = True
+    error: str | None = None

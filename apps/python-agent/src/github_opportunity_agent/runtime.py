@@ -1,4 +1,4 @@
-from github_opportunity_agent.models import AgentMessage, AgentRunResult
+from github_opportunity_agent.models import AgentMessage, AgentState, AgentRunResult
 
 
 def observe(user_input: str) -> str:
@@ -36,14 +36,11 @@ def run_rule_based_agent(user_input: str) -> AgentRunResult:
     )
 
 
-def build_messages(user_input: str) -> list[AgentMessage]:
-    return [
-        AgentMessage(
-            role="system",
-            content="You are a helpful assistant that reasons from first principles.",
-        ),
-        AgentMessage(role="user", content=user_input),
-    ]
+def get_system_prompt_message() -> AgentMessage:
+    return AgentMessage(
+        role="system",
+        content="You are a helpful assistant that reasons from first principles.",
+    )
 
 
 def decide_with_messages(messages: list[AgentMessage]) -> str:
@@ -58,12 +55,28 @@ def decide_with_messages(messages: list[AgentMessage]) -> str:
     return "Here is a direct response."
 
 
-def run_llm_shaped_agent(user_input: str) -> AgentRunResult:
-    messages = build_messages(user_input)
-    action = "model_reply"
-    output_text = decide_with_messages(messages)
-    return AgentRunResult(
-        input_text=user_input,
-        action=action,
-        output_text=output_text,
+def run_turn(state: AgentState, user_input: str) -> tuple[AgentState, AgentRunResult]:
+    if len(state.messages) == 0:
+        state.messages = [get_system_prompt_message()]
+    state.messages.append(AgentMessage(role="user", content=user_input))
+    state.status = "working"
+    state.turn_number += 1
+    action = decide_with_messages(state.messages)
+    output_text = act(action, user_input)
+
+    state.messages.append(AgentMessage(role="assistant", content=output_text))
+    state.status = "success"
+    return (
+        state,
+        AgentRunResult(
+            input_text=user_input,
+            action=action,
+            output_text=output_text,
+        ),
     )
+
+
+def run_llm_shaped_agent(user_input: str) -> AgentRunResult:
+    state = AgentState()
+    state, result = run_turn(state, user_input)
+    return result

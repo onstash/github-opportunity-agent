@@ -1,5 +1,6 @@
 from github_opportunity_agent.models import Profile, RepoCandidate
 
+
 def score_repo(profile: Profile, repo: RepoCandidate) -> int:
     """
     Score a repository candidate based on the user's profile.
