@@ -1,3 +1,5 @@
+from typing_extensions import TypeAlias, Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -33,5 +35,27 @@ class AgentRunResult(BaseModel):
     input_text: str
     action: str
     output_text: str
+    final_output: str | None = None
+    events: list["AgentEvent"] = Field(default_factory=list)
     success: bool = True
     error: str | None = None
+
+    def stream_events(self):
+        yield from self.events
+
+
+AgentEventType: TypeAlias = Literal[
+    "agent_start",
+    "turn_start",
+    "message_start",
+    "message_update",
+    "message_end",
+    "turn_end",
+    "agent_end",
+    "error",
+]
+
+
+class AgentEvent(BaseModel):
+    event_type: AgentEventType
+    message: str

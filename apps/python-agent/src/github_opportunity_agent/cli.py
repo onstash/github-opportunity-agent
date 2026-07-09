@@ -37,7 +37,7 @@ def build_sample_repos() -> list[RepoCandidate]:
 def main() -> None:
     sample_prompt = "I want to learn how to rank open source repositories."
     rule_based_result = run_rule_based_agent(sample_prompt)
-    llm_shaped_result = run_llm_shaped_agent(sample_prompt)
+    state, llm_shaped_result = run_llm_shaped_agent(sample_prompt)
 
     profile = build_sample_profile()
     repos = build_sample_repos()
@@ -49,8 +49,12 @@ def main() -> None:
     print()
 
     print("LLM-shaped agent")
+    print(f"  agent state: {state}")
+    print("  agent events:")
+    for event in llm_shaped_result.stream_events():
+        print(f"    {event.event_type}: {event.message}")
     print(f"  action: {llm_shaped_result.action}")
-    print(f"  output: {llm_shaped_result.output_text}")
+    print(f"  output: {llm_shaped_result.final_output}")
     print()
 
     print("Ranked repositories")

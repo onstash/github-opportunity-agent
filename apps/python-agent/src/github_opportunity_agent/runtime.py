@@ -1,4 +1,10 @@
-from github_opportunity_agent.models import AgentMessage, AgentState, AgentRunResult
+from github_opportunity_agent.models import (
+    AgentEvent,
+    AgentEventType,
+    AgentMessage,
+    AgentRunResult,
+    AgentState,
+)
 
 
 def observe(user_input: str) -> str:
@@ -25,17 +31,6 @@ def act(action: str, user_input: str) -> str:
     return f"I should respond directly to: {user_input}"
 
 
-def run_rule_based_agent(user_input: str) -> AgentRunResult:
-    observed_input = observe(user_input)
-    action = decide(observed_input)
-    output_text = act(action, user_input)
-    return AgentRunResult(
-        input_text=user_input,
-        action=action,
-        output_text=output_text,
-    )
-
-
 def get_system_prompt_message() -> AgentMessage:
     return AgentMessage(
         role="system",
@@ -47,36 +42,50 @@ def decide_with_messages(messages: list[AgentMessage]) -> str:
     user_text = messages[-1].content.lower()
 
     if "bug" in user_text or "error" in user_text:
-        return "Let's debug this step by step."
+        return "debug"
     if "learn" in user_text or "understand" in user_text:
-        return "Let me teach this from first principles."
+        return "teach"
     if "rank" in user_text or "repo" in user_text:
-        return "Let me score the repository candidates."
-    return "Here is a direct response."
+        return "rank"
+    return "respond"
+
+
+def emit_event(event_type: AgentEventType, message: str) -> AgentEvent:
+    return AgentEvent(event_type=event_type, message=message)
 
 
 def run_turn(state: AgentState, user_input: str) -> tuple[AgentState, AgentRunResult]:
     if len(state.messages) == 0:
         state.messages = [get_system_prompt_message()]
+
     state.messages.append(AgentMessage(role="user", content=user_input))
     state.status = "working"
     state.turn_number += 1
+
     action = decide_with_messages(state.messages)
     output_text = act(action, user_input)
 
     state.messages.append(AgentMessage(role="assistant", content=output_text))
     state.status = "success"
-    return (
-        state,
-        AgentRunResult(
-            input_text=user_input,
-            action=action,
-            output_text=output_text,
-        ),
+
+    result = AgentRunResult(
+        input_text=user_input,
+        action=action,
+        output_text=output_text,
+        final_output=output_text,
+        events=[
+            emit_event("agent_start", "An agent run has started."),
+            emit_event("turn_start", "A new turn has started."),
+            emit_event("message_start", "User message added."),
+            emit_event("message_update", f"Decided action: {action}"),
+            emit_event("message_update", "Assistant message added."),
+            emit_event("message_end", "Turn completed successfully."),
+            emit_event("agent_end", "Agent run completed successfully."),
+        ],
     )
+    return state, result
 
 
-def run_llm_shaped_agent(user_input: str) -> AgentRunResult:
+def run_llm_shaped_agent(user_input: str) -> tuple[AgentState, AgentRunResult]:
     state = AgentState()
-    state, result = run_turn(state, user_input)
-    return result
+    return run_turn(state, user_input)
