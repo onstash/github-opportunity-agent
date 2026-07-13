@@ -1,9 +1,9 @@
 import { normalizeJob } from "./normalize/jobs.js";
 import { normalizeOss } from "./normalize/oss.js";
-import { UserProfile } from "./profile.js";
+import type { UserProfile } from "./profile.js";
 import { rank } from "./ranking/rank.js";
 import { fetchRawJobHits } from "./sources/jobs.js";
-import { fetchRawOSSHits } from "./sources/oss.js";
+import { fetchRawOssHits } from "./sources/oss.js";
 
 async function main() {
   const profile: UserProfile = {
@@ -14,7 +14,7 @@ async function main() {
 
   const [rawJobHits, rawOssHits] = await Promise.all([
     fetchRawJobHits(),
-    fetchRawOSSHits(),
+    fetchRawOssHits(),
   ]);
 
   const opportunities = [

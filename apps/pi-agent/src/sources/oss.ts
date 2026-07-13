@@ -1,6 +1,6 @@
 import type { RawOssHit } from "../normalize/oss.js";
 
-export async function fetchRawOSSHits(): Promise<RawOssHit[]> {
+export async function fetchRawOssHits(): Promise<RawOssHit[]> {
   const rawOssHits: RawOssHit[] = [
     {
       repoName: "tanstack/query",
