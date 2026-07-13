@@ -1,7 +1,7 @@
-import type { Opportunity } from "../types.js";
+import type { Opportunity, ScoredSourceHit } from "../types.js";
 
 import { scoreRelevance } from "../scoring/relevance.js";
-import { UserProfile } from "../profile.js";
+import type { UserProfile } from "../profile.js";
 
 export type RawJobHit = {
   orgName: string;
@@ -27,7 +27,11 @@ function scoreJobConfidence(source: RawJobHit["source"]): number {
   return 5;
 }
 
-export function normalizeJob(hit: RawJobHit, profile: UserProfile): Opportunity {
+export function normalizeJob(
+  scoredHit: ScoredSourceHit<RawJobHit>,
+  profile: UserProfile,
+): Opportunity {
+  const { hit, queryScore } = scoredHit;
   return {
     kind: "job",
     title: hit.roleTitle,
@@ -35,6 +39,7 @@ export function normalizeJob(hit: RawJobHit, profile: UserProfile): Opportunity 
     organization: hit.orgName,
     summary: hit.summary,
     topics: hit.skills,
+    queryScore,
     relevanceScore: scoreRelevance(hit.skills, profile),
     recencyScore: scoreRecency(hit.updatedAt),
     effortScore: scoreJobEffort(hit.summary),

@@ -29,6 +29,9 @@ async function main() {
     console.log(`${item.kind.toUpperCase()}: ${item.title}`);
     console.log(`  org: ${item.organization}`);
     console.log(`  score: ${item.totalScore.toFixed(2)}`);
+    console.log(
+      `  components: query=${item.queryScore}, relevance=${item.relevanceScore}, recency=${item.recencyScore}, effort=${item.effortScore}, confidence=${item.confidenceScore}`,
+    );
     console.log(`  reasons: ${item.reasons.join(", ") || "none yet"}`);
     console.log(`  url: ${item.url}`);
     console.log("");

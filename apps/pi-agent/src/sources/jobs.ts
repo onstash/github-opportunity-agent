@@ -1,7 +1,8 @@
 import type { RawJobHit } from "../normalize/jobs.js";
-import { matchesQuery } from "../search/matches-query.js";
+import { scoreQueryMatch } from "../search/matches-query.js";
+import type { ScoredSourceHit } from "../types.js";
 
-export async function fetchRawJobHits(userInput?: string): Promise<RawJobHit[]> {
+export async function fetchRawJobHits(userInput?: string): Promise<ScoredSourceHit<RawJobHit>[]> {
   const rawJobHits: RawJobHit[] = [
     {
       orgName: "Example DevTools",
@@ -14,10 +15,14 @@ export async function fetchRawJobHits(userInput?: string): Promise<RawJobHit[]> 
     },
   ];
 
-  return rawJobHits.filter((hit) =>
-    matchesQuery(
-      [hit.orgName, hit.roleTitle, hit.summary, ...hit.skills],
-      userInput,
-    ),
-  );
+  return rawJobHits
+    .map((hit) => ({
+      hit,
+      queryScore: scoreQueryMatch(
+        [hit.orgName, hit.roleTitle, hit.summary, ...hit.skills],
+        userInput,
+      ),
+    }))
+    .filter((entry) => entry.queryScore > 0)
+    .sort((a, b) => b.queryScore - a.queryScore);
 }

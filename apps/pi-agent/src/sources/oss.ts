@@ -1,7 +1,8 @@
 import type { RawOssHit } from "../normalize/oss.js";
-import { matchesQuery } from "../search/matches-query.js";
+import { scoreQueryMatch } from "../search/matches-query.js";
+import type { ScoredSourceHit } from "../types.js";
 
-export async function fetchRawOssHits(userInput?: string): Promise<RawOssHit[]> {
+export async function fetchRawOssHits(userInput?: string): Promise<ScoredSourceHit<RawOssHit>[]> {
   const rawOssHits: RawOssHit[] = [
     {
       repoName: "tanstack/query",
@@ -16,17 +17,21 @@ export async function fetchRawOssHits(userInput?: string): Promise<RawOssHit[]> 
     },
   ];
 
-  return rawOssHits.filter((hit) =>
-    matchesQuery(
-      [
-        hit.repoName,
-        hit.repoOwner,
-        hit.issueTitle ?? "",
-        hit.issueBody ?? "",
-        ...hit.topics,
-        ...hit.labels,
-      ],
-      userInput,
-    ),
-  );
+  return rawOssHits
+    .map((hit) => ({
+      hit,
+      queryScore: scoreQueryMatch(
+        [
+          hit.repoName,
+          hit.repoOwner,
+          hit.issueTitle ?? "",
+          hit.issueBody ?? "",
+          ...hit.topics,
+          ...hit.labels,
+        ],
+        userInput,
+      ),
+    }))
+    .filter((entry) => entry.queryScore > 0)
+    .sort((a, b) => b.queryScore - a.queryScore);
 }

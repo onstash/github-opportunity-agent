@@ -16,24 +16,28 @@ const STOP_WORDS = new Set([
 function tokenize(userInput: string): string[] {
   return userInput
     .toLowerCase()
-    .split(/\s+/)
+    .split(/\W+/)
     .map((term) => term.trim())
     .filter(Boolean)
     .filter((term) => !STOP_WORDS.has(term));
 }
 
 export function matchesQuery(fields: string[], userInput?: string): boolean {
+  return scoreQueryMatch(fields, userInput) > 0;
+}
+
+export function scoreQueryMatch(fields: string[], userInput?: string): number {
   if (!userInput?.trim()) {
-    return true;
+    return 3;
   }
 
-  const haystack = fields.join(" ").toLowerCase();
   const terms = tokenize(userInput);
+  const fieldTokens = new Set(tokenize(fields.join(" ")));
 
   if (terms.length === 0) {
-    return true;
+    return 3;
   }
 
-  const matchedTerms = terms.filter((term) => haystack.includes(term));
-  return matchedTerms.length >= Math.min(2, terms.length);
+  const matchedCount = terms.filter((term) => fieldTokens.has(term)).length;
+  return Math.min(10, matchedCount * 3);
 }

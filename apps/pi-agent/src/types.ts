@@ -7,11 +7,17 @@ export interface Opportunity {
   organization: string;
   summary: string;
   topics: string[];
+  queryScore: number;
   relevanceScore: number;
   recencyScore: number;
   effortScore: number;
   confidenceScore: number;
 }
+
+export type ScoredSourceHit<T> = {
+  hit: T;
+  queryScore: number;
+};
 
 export interface RankedOpportunity extends Opportunity {
   totalScore: number;

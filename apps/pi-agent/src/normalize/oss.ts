@@ -1,7 +1,7 @@
-import type { Opportunity } from "../types.js";
+import type { Opportunity, ScoredSourceHit } from "../types.js";
 
 import { scoreRelevance } from "../scoring/relevance.js";
-import { UserProfile } from "../profile.js";
+import type { UserProfile } from "../profile.js";
 
 export type RawOssHit = {
   repoName: string;
@@ -33,7 +33,11 @@ function scoreOssConfidence(stars: number): number {
   return 4;
 }
 
-export function normalizeOss(hit: RawOssHit, profile: UserProfile): Opportunity {
+export function normalizeOss(
+  scoredHit: ScoredSourceHit<RawOssHit>,
+  profile: UserProfile,
+): Opportunity {
+  const { hit, queryScore } = scoredHit;
   return {
     kind: "oss",
     title: hit.issueTitle ?? hit.repoName,
@@ -41,6 +45,7 @@ export function normalizeOss(hit: RawOssHit, profile: UserProfile): Opportunity 
     organization: hit.repoOwner,
     summary: hit.issueBody ?? `Contribute to ${hit.repoName}`,
     topics: [...hit.topics, ...hit.labels],
+    queryScore,
     relevanceScore: scoreRelevance([...hit.topics, ...hit.labels], profile),
     recencyScore: scoreRecency(hit.updatedAt),
     effortScore: scoreOssEffort(hit.labels),
