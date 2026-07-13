@@ -8,8 +8,22 @@ async function main() {
     targetRoles: ["developer advocate", "developer relations"],
   };
 
-  const userInput = process.argv.slice(2).join(" ").trim() || "typescript developer tools";
+  const userInput =
+    process.argv.slice(2).join(" ").trim() || "typescript developer tools";
   const result = await runOpportunityAgent(profile, userInput);
+  console.log(`query: ${result.userInput}`);
+  console.log(`model: ${result.model.provider}/${result.model.name}`);
+  console.log("");
+
+  const totalOpportunities = result.ranked.length;
+  if (!totalOpportunities) {
+    console.log("No opportunities found.");
+    console.log("");
+    return;
+  }
+
+  console.log(`Found ${totalOpportunities} ${totalOpportunities === 1 ? "opportunity" : "opportunities"}:`);
+  console.log("");
 
   for (const item of result.ranked) {
     console.log(`${item.kind.toUpperCase()}: ${item.title}`);
