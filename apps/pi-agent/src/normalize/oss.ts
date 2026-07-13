@@ -1,6 +1,6 @@
 import type { Opportunity } from "../types.js";
 
-import { scoreRelevance } from "../ranking/rank.js";
+import { scoreRelevance } from "../scoring/relevance.js";
 import { UserProfile } from "../profile.js";
 
 export type RawOssHit = {

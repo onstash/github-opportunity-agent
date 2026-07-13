@@ -1,4 +1,3 @@
-import { UserProfile } from "../profile.js";
 import type { Opportunity, RankedOpportunity } from "../types.js";
 
 export function totalScore(opportunity: Opportunity): number {
@@ -31,23 +30,4 @@ export function rank(opportunities: Opportunity[]): RankedOpportunity[] {
       reasons: explain(opportunity),
     }))
     .sort((a, b) => b.totalScore - a.totalScore);
-}
-
-export function scoreRelevance(topics: string[], profile: UserProfile): number {
-  const topicSet = new Set(topics.map((topic) => topic.toLowerCase()));
-  const profileTerms = [
-    ...profile.skills,
-    ...profile.interests,
-    ...profile.targetRoles,
-  ].map((term) => term.toLowerCase());
-
-  let matches = 0;
-
-  for (const term of profileTerms) {
-    if (topicSet.has(term)) {
-      matches += 1;
-    }
-  }
-
-  return Math.min(10, matches * 3);
 }
