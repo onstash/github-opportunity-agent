@@ -1,5 +1,6 @@
 import { runOpportunityAgent } from "./agents/agent.js";
 import type { UserProfile } from "./profile.js";
+import { prepareRuntimeExecution, toLinearMessages } from "./runtime.js";
 
 async function main() {
   const profile: UserProfile = {
@@ -10,12 +11,16 @@ async function main() {
 
   const userInput =
     process.argv.slice(2).join(" ").trim() || "typescript developer tools";
-  const result = await runOpportunityAgent(profile, userInput);
-  console.log(`query: ${result.userInput}`);
-  console.log(`model: ${result.model.provider}/${result.model.name}`);
+  const _result =  await runOpportunityAgent(profile, userInput);
+  const result = prepareRuntimeExecution(_result.runtime);
+  console.log(`query: ${_result.userInput}`);
+  console.log(`model: ${result.runtime.model.provider}/${result.runtime.model.name}`);
+  for (const message of result.linearMessages) {
+    console.log(`  ${message.role}: ${message.content}`);
+  }
   console.log("");
 
-  const totalOpportunities = result.ranked.length;
+  const totalOpportunities = _result.ranked.length;
   if (!totalOpportunities) {
     console.log("No opportunities found.");
     console.log("");
@@ -25,7 +30,7 @@ async function main() {
   console.log(`Found ${totalOpportunities} ${totalOpportunities === 1 ? "opportunity" : "opportunities"}:`);
   console.log("");
 
-  for (const item of result.ranked) {
+  for (const item of _result.ranked) {
     console.log(`${item.kind.toUpperCase()}: ${item.title}`);
     console.log(`  org: ${item.organization}`);
     console.log(`  score: ${item.totalScore.toFixed(2)}`);
