@@ -1,8 +1,5 @@
-import { normalizeJob } from "./normalize/jobs.js";
-import { normalizeOss } from "./normalize/oss.js";
+import { runOpportunityAgent } from "./agents/agent.js";
 import type { UserProfile } from "./profile.js";
-import { rank } from "./ranking/rank.js";
-import { tools } from "./tools.js";
 
 async function main() {
   const profile: UserProfile = {
@@ -11,19 +8,9 @@ async function main() {
     targetRoles: ["developer advocate", "developer relations"],
   };
 
-  const [rawJobHits, rawOssHits] = await Promise.all([
-    tools.search_jobs(),
-    tools.search_oss(),
-  ]);
+  const result = await runOpportunityAgent(profile, "Looking for opportunities in open source and developer tools");
 
-  const opportunities = [
-    ...rawOssHits.map((hit) => normalizeOss(hit, profile)),
-    ...rawJobHits.map((hit) => normalizeJob(hit, profile)),
-  ];
-
-  const ranked = rank(opportunities);
-
-  for (const item of ranked) {
+  for (const item of result.ranked) {
     console.log(`${item.kind.toUpperCase()}: ${item.title}`);
     console.log(`  org: ${item.organization}`);
     console.log(`  score: ${item.totalScore.toFixed(2)}`);
