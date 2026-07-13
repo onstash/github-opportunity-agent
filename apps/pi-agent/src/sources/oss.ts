@@ -1,18 +1,5 @@
 import type { RawOssHit } from "../normalize/oss.js";
-
-function matchesQuery(fields: string[], userInput?: string): boolean {
-  if (!userInput?.trim()) {
-    return true;
-  }
-
-  const haystack = fields.join(" ").toLowerCase();
-  const terms = userInput
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  return terms.every((term) => haystack.includes(term));
-}
+import { matchesQuery } from "../search/matches-query.js";
 
 export async function fetchRawOssHits(userInput?: string): Promise<RawOssHit[]> {
   const rawOssHits: RawOssHit[] = [
