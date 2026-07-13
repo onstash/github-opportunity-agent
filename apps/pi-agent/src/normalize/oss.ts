@@ -41,7 +41,7 @@ export function normalizeOss(hit: RawOssHit, profile: UserProfile): Opportunity 
     organization: hit.repoOwner,
     summary: hit.issueBody ?? `Contribute to ${hit.repoName}`,
     topics: [...hit.topics, ...hit.labels],
-    relevanceScore: scoreRelevance(hit.topics, profile),
+    relevanceScore: scoreRelevance([...hit.topics, ...hit.labels], profile),
     recencyScore: scoreRecency(hit.updatedAt),
     effortScore: scoreOssEffort(hit.labels),
     confidenceScore: scoreOssConfidence(hit.stars),

@@ -13,7 +13,7 @@ export function totalScore(opportunity: Opportunity): number {
 export function explain(opportunity: Opportunity): string[] {
   const reasons: string[] = [];
 
-  if (opportunity.relevanceScore >= 8) reasons.push("strong skill match");
+  // if (opportunity.relevanceScore >= 8) reasons.push("strong skill match");
   if (opportunity.relevanceScore >= 6) reasons.push("strong profile match");
   if (opportunity.recencyScore >= 7) reasons.push("fresh opportunity");
   if (opportunity.effortScore >= 7) reasons.push("approachable next step");
