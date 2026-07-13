@@ -1,6 +1,20 @@
 import type { RawOssHit } from "../normalize/oss.js";
 
-export async function fetchRawOssHits(): Promise<RawOssHit[]> {
+function matchesQuery(fields: string[], userInput?: string): boolean {
+  if (!userInput?.trim()) {
+    return true;
+  }
+
+  const haystack = fields.join(" ").toLowerCase();
+  const terms = userInput
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  return terms.every((term) => haystack.includes(term));
+}
+
+export async function fetchRawOssHits(userInput?: string): Promise<RawOssHit[]> {
   const rawOssHits: RawOssHit[] = [
     {
       repoName: "tanstack/query",
@@ -14,5 +28,18 @@ export async function fetchRawOssHits(): Promise<RawOssHit[]> {
       topics: ["typescript", "react", "data-fetching"],
     },
   ];
-  return rawOssHits;
+
+  return rawOssHits.filter((hit) =>
+    matchesQuery(
+      [
+        hit.repoName,
+        hit.repoOwner,
+        hit.issueTitle ?? "",
+        hit.issueBody ?? "",
+        ...hit.topics,
+        ...hit.labels,
+      ],
+      userInput,
+    ),
+  );
 }

@@ -13,8 +13,8 @@ export async function runOpportunityAgent(profile: UserProfile, userInput: strin
 }> {
   const defaultModel = getDefaultModel();
   const [rawJobHits, rawOssHits] = await Promise.all([
-    tools.search_jobs(),
-    tools.search_oss(),
+    tools.search_jobs(userInput),
+    tools.search_oss(userInput),
   ]);
 
   const opportunities = [

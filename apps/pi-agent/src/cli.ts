@@ -8,7 +8,8 @@ async function main() {
     targetRoles: ["developer advocate", "developer relations"],
   };
 
-  const result = await runOpportunityAgent(profile, "Looking for opportunities in open source and developer tools");
+  const userInput = process.argv.slice(2).join(" ").trim() || "typescript developer tools";
+  const result = await runOpportunityAgent(profile, userInput);
 
   for (const item of result.ranked) {
     console.log(`${item.kind.toUpperCase()}: ${item.title}`);
