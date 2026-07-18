@@ -31,6 +31,23 @@ export type RuntimeEvent =
   | { type: "tool_executed"; toolName: string; resultCount: number }
   | { type: "runtime_completed" };
 
+export type RuntimeStreamChunk =
+  | { type: "runtime_started" }
+  | { type: "tool_selected"; toolName: string }
+  | {
+      type: "tool_executed";
+      toolName: "search_oss";
+      resultCount: number;
+      result: Awaited<ReturnType<typeof searchOssTool.execute>>;
+    }
+  | {
+      type: "tool_executed";
+      toolName: "search_jobs";
+      resultCount: number;
+      result: Awaited<ReturnType<typeof searchJobsTool.execute>>;
+    }
+  | { type: "runtime_completed"; finalAssistantOutput: string };
+
 export function toLinearMessages(input: RuntimeInput): RuntimeMessage[] {
   return [{ role: "system", content: input.systemPrompt }, ...input.messages];
 }
@@ -71,19 +88,15 @@ function shouldRunTool(query: string, keywords: string[]): boolean {
   return keywords.some((keyword) => normalizedQuery.includes(keyword));
 }
 
-export async function executeRuntime(
-  input: RuntimeInput,
-): Promise<RuntimeExecutionResult> {
+function getRuntimeQuery(input: RuntimeInput): string {
   const linearMessages = toLinearMessages(input);
   const userMessage = [...linearMessages]
     .reverse()
     .find((message) => message.role === "user");
-  const query = userMessage?.content ?? "";
+  return userMessage?.content ?? "";
+}
 
-  const events: RuntimeEvent[] = [{ type: "runtime_started" }];
-  const toolNames: string[] = [];
-  const toolResults: RuntimeExecutionResult["toolResults"] = {};
-
+function selectToolNames(query: string): Array<"search_oss" | "search_jobs"> {
   const shouldRunOss = shouldRunTool(query, [
     "open source",
     "oss",
@@ -101,35 +114,55 @@ export async function executeRuntime(
   ]);
   const runBothTools = !shouldRunOss && !shouldRunJobs;
 
+  const toolNames: Array<"search_oss" | "search_jobs"> = [];
+
   if (shouldRunOss || runBothTools) {
-    events.push({ type: "tool_selected", toolName: "search_oss" });
     toolNames.push("search_oss");
-    const result = await searchOssTool.execute({ query });
-    toolResults.search_oss = result;
-    events.push({
-      type: "tool_executed",
-      toolName: "search_oss",
-      resultCount: result.length,
-    });
   }
 
   if (shouldRunJobs || runBothTools) {
-    events.push({ type: "tool_selected", toolName: "search_jobs" });
     toolNames.push("search_jobs");
-    const result = await searchJobsTool.execute({ query });
-    toolResults.search_jobs = result;
-    events.push({
-      type: "tool_executed",
-      toolName: "search_jobs",
-      resultCount: result.length,
-    });
   }
 
-  events.push({ type: "runtime_completed" });
+  return toolNames;
+}
 
-  const ossCount = toolResults.search_oss?.length ?? 0;
-  const jobCount = toolResults.search_jobs?.length ?? 0;
-  const totalCount = ossCount + jobCount;
+export async function executeRuntime(
+  input: RuntimeInput,
+): Promise<RuntimeExecutionResult> {
+  const linearMessages = toLinearMessages(input);
+  const events: RuntimeEvent[] = [];
+  const toolNames: string[] = [];
+  const toolResults: RuntimeExecutionResult["toolResults"] = {};
+  let finalAssistantOutput = "";
+
+  for await (const chunk of streamRuntime(input)) {
+    switch (chunk.type) {
+      case "runtime_started":
+        events.push({ type: "runtime_started" });
+        break;
+      case "tool_selected":
+        events.push({ type: "tool_selected", toolName: chunk.toolName });
+        toolNames.push(chunk.toolName);
+        break;
+      case "tool_executed":
+        events.push({
+          type: "tool_executed",
+          toolName: chunk.toolName,
+          resultCount: chunk.resultCount,
+        });
+        if (chunk.toolName === "search_oss") {
+          toolResults.search_oss = chunk.result;
+        } else {
+          toolResults.search_jobs = chunk.result;
+        }
+        break;
+      case "runtime_completed":
+        events.push({ type: "runtime_completed" });
+        finalAssistantOutput = chunk.finalAssistantOutput;
+        break;
+    }
+  }
 
   return {
     runtime: input,
@@ -137,6 +170,47 @@ export async function executeRuntime(
     toolNames,
     events,
     toolResults,
+    finalAssistantOutput,
+  };
+}
+
+export async function* streamRuntime(
+  input: RuntimeInput,
+): AsyncGenerator<RuntimeStreamChunk> {
+  const query = getRuntimeQuery(input);
+  const toolNames = selectToolNames(query);
+
+  yield { type: "runtime_started" };
+
+  let totalCount = 0;
+
+  for (const toolName of toolNames) {
+    yield { type: "tool_selected", toolName };
+
+    if (toolName === "search_oss") {
+      const result = await searchOssTool.execute({ query });
+      totalCount += result.length;
+      yield {
+        type: "tool_executed",
+        toolName,
+        resultCount: result.length,
+        result,
+      };
+      continue;
+    }
+
+    const result = await searchJobsTool.execute({ query });
+    totalCount += result.length;
+    yield {
+      type: "tool_executed",
+      toolName,
+      resultCount: result.length,
+      result,
+    };
+  }
+
+  yield {
+    type: "runtime_completed",
     finalAssistantOutput: `Found ${totalCount} opportunities for your query.`,
   };
 }
