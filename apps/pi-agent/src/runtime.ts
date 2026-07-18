@@ -220,7 +220,7 @@ export async function* streamRuntime(
   yield {
     type: "runtime_completed",
     finalAssistantOutput: totalCount
-      ? `Found ${totalCount} opportunities for your query.`
+      ? `Found ${totalCount} ${totalCount === 1 ? "opportunity" : "opportunities"} for your query.`
       : "No opportunities found for your query.",
     stopReason,
     totalIterations: currentIteration,
