@@ -6,7 +6,7 @@ async function main() {
   const runtime = buildRuntimeInput(userInput);
 
   for await (const chunk of streamRuntime(runtime)) {
-    console.log(chunk);
+    console.log(JSON.stringify(chunk));
   }
 }
 

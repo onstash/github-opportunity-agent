@@ -1,5 +1,8 @@
 import { getDefaultModel, type SelectedModel } from "./models/default-model.js";
+import { RawJobHit } from "./normalize/jobs.js";
+import { RawOssHit } from "./normalize/oss.js";
 import { searchJobsTool, searchOssTool, type ToolDefinition } from "./tools.js";
+import { ScoredSourceHit } from "./types.js";
 
 export type RuntimeMessage = {
   role: "system" | "user" | "assistant";
@@ -12,6 +15,16 @@ export type RuntimeInput = {
   messages: RuntimeMessage[];
   tools: ToolDefinition<any, any>[];
 };
+
+export type RuntimeLoopOptions = {
+  maxIterations: number;
+};
+
+export type StopReason =
+  | "max_iterations"
+  | "repeated_tool_call"
+  | "low_signal_result"
+  | "no_better_next_action";
 
 export type RuntimeExecutionResult = {
   runtime: RuntimeInput;
@@ -32,6 +45,7 @@ export type RuntimeEvent =
   | { type: "runtime_completed" };
 
 export type RuntimeStreamChunk =
+  | { type: "runtime_iteration_started"; iteration: number }
   | { type: "runtime_started" }
   | { type: "tool_selected"; toolName: string }
   | {
@@ -46,7 +60,16 @@ export type RuntimeStreamChunk =
       resultCount: number;
       result: Awaited<ReturnType<typeof searchJobsTool.execute>>;
     }
-  | { type: "runtime_completed"; finalAssistantOutput: string };
+  | {
+      type: "runtime_completed";
+      stopReason: StopReason;
+      totalIterations: number;
+      finalAssistantOutput: string;
+    };
+
+export function getDefaultLoopOptions(): RuntimeLoopOptions {
+  return { maxIterations: 3 };
+}
 
 export function toLinearMessages(input: RuntimeInput): RuntimeMessage[] {
   return [{ role: "system", content: input.systemPrompt }, ...input.messages];
@@ -127,90 +150,79 @@ function selectToolNames(query: string): Array<"search_oss" | "search_jobs"> {
   return toolNames;
 }
 
-export async function executeRuntime(
-  input: RuntimeInput,
-): Promise<RuntimeExecutionResult> {
-  const linearMessages = toLinearMessages(input);
-  const events: RuntimeEvent[] = [];
-  const toolNames: string[] = [];
-  const toolResults: RuntimeExecutionResult["toolResults"] = {};
-  let finalAssistantOutput = "";
-
-  for await (const chunk of streamRuntime(input)) {
-    switch (chunk.type) {
-      case "runtime_started":
-        events.push({ type: "runtime_started" });
-        break;
-      case "tool_selected":
-        events.push({ type: "tool_selected", toolName: chunk.toolName });
-        toolNames.push(chunk.toolName);
-        break;
-      case "tool_executed":
-        events.push({
-          type: "tool_executed",
-          toolName: chunk.toolName,
-          resultCount: chunk.resultCount,
-        });
-        if (chunk.toolName === "search_oss") {
-          toolResults.search_oss = chunk.result;
-        } else {
-          toolResults.search_jobs = chunk.result;
-        }
-        break;
-      case "runtime_completed":
-        events.push({ type: "runtime_completed" });
-        finalAssistantOutput = chunk.finalAssistantOutput;
-        break;
-    }
-  }
-
-  return {
-    runtime: input,
-    linearMessages,
-    toolNames,
-    events,
-    toolResults,
-    finalAssistantOutput,
-  };
-}
-
 export async function* streamRuntime(
   input: RuntimeInput,
+  options: RuntimeLoopOptions = getDefaultLoopOptions(),
 ): AsyncGenerator<RuntimeStreamChunk> {
+  let currentIteration = 0;
+  let totalCount = 0;
   const query = getRuntimeQuery(input);
-  const toolNames = selectToolNames(query);
+  const candidateToolNames = selectToolNames(query);
+
+  const executedToolNames = new Set<string>();
+  let stopReason: StopReason = "max_iterations";
 
   yield { type: "runtime_started" };
+  while (currentIteration < options.maxIterations) {
+    currentIteration += 1;
+    yield { type: "runtime_iteration_started", iteration: currentIteration };
+    // decide next action
+    const nextToolName = candidateToolNames.find(
+      (toolName) => !executedToolNames.has(toolName),
+    );
+    if (!nextToolName) {
+      stopReason = "no_better_next_action";
+      break;
+    }
+    if (executedToolNames.has(nextToolName)) {
+      stopReason = "repeated_tool_call";
+      break;
+    }
 
-  let totalCount = 0;
+    executedToolNames.add(nextToolName);
+    yield { type: "tool_selected", toolName: nextToolName };
 
-  for (const toolName of toolNames) {
-    yield { type: "tool_selected", toolName };
-
-    if (toolName === "search_oss") {
-      const result = await searchOssTool.execute({ query });
+    let result: ScoredSourceHit<RawOssHit>[] | ScoredSourceHit<RawJobHit>[] =
+      [];
+    if (nextToolName === "search_oss") {
+      result = await searchOssTool.execute({ query });
       totalCount += result.length;
+
       yield {
         type: "tool_executed",
-        toolName,
+        toolName: nextToolName,
         resultCount: result.length,
         result,
       };
+    } else if (nextToolName === "search_jobs") {
+      result = await searchJobsTool.execute({ query });
+      totalCount += result.length;
+
+      yield {
+        type: "tool_executed",
+        toolName: nextToolName,
+        resultCount: result.length,
+        result,
+      };
+    }
+    if (result.length === 0) {
+      const remainingToolNames = candidateToolNames.filter(
+        (toolName) => !executedToolNames.has(toolName),
+      );
+      if (remainingToolNames.length === 0) {
+        stopReason = "low_signal_result";
+        break;
+      }
       continue;
     }
-
-    const result = await searchJobsTool.execute({ query });
-    totalCount += result.length;
-    yield {
-      type: "tool_executed",
-      toolName,
-      resultCount: result.length,
-      result,
-    };
   }
 
   yield {
     type: "runtime_completed",
-    finalAssistantOutput: `Found ${totalCount} opportunities for your query.`,
+    finalAssistantOutput: totalCount
+      ? `Found ${totalCount} opportunities for your query.`
+      : "No opportunities found for your query.",
+    stopReason,
+    totalIterations: currentIteration,
   };
 }
