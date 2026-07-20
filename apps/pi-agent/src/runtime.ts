@@ -150,6 +150,40 @@ function selectToolNames(query: string): Array<"search_oss" | "search_jobs"> {
   return toolNames;
 }
 
+type AgentDecision =
+  | {
+      kind: "call_tool";
+      toolName: "search_oss" | "search_jobs";
+      query: string;
+    }
+  | {
+      kind: "stop";
+      reason: StopReason;
+    };
+
+type RuntimeToolName = "search_oss" | "search_jobs";
+
+function decideNextAction(
+  query: string,
+  candidateToolNames: Array<RuntimeToolName>,
+  executedToolNames: Set<RuntimeToolName>,
+): AgentDecision {
+  const nextToolName = candidateToolNames.find(
+    (toolName) => !executedToolNames.has(toolName),
+  );
+  if (!nextToolName) {
+    return {
+      kind: "stop",
+      reason: "no_better_next_action",
+    };
+  }
+  return {
+    kind: "call_tool",
+    toolName: nextToolName,
+    query,
+  };
+}
+
 export async function* streamRuntime(
   input: RuntimeInput,
   options: RuntimeLoopOptions = getDefaultLoopOptions(),
@@ -159,26 +193,27 @@ export async function* streamRuntime(
   const query = getRuntimeQuery(input);
   const candidateToolNames = selectToolNames(query);
 
-  const executedToolNames = new Set<string>();
+  const executedToolNames = new Set<RuntimeToolName>();
   let stopReason: StopReason = "max_iterations";
 
   yield { type: "runtime_started" };
   while (currentIteration < options.maxIterations) {
     currentIteration += 1;
     yield { type: "runtime_iteration_started", iteration: currentIteration };
-    // decide next action
-    const nextToolName = candidateToolNames.find(
-      (toolName) => !executedToolNames.has(toolName),
+    const decision = decideNextAction(
+      query,
+      candidateToolNames,
+      executedToolNames,
     );
-    if (!nextToolName) {
-      stopReason = "no_better_next_action";
+    if (decision.kind === "stop") {
+      stopReason = decision.reason;
       break;
     }
+    const nextToolName = decision.toolName;
     if (executedToolNames.has(nextToolName)) {
       stopReason = "repeated_tool_call";
       break;
     }
-
     executedToolNames.add(nextToolName);
     yield { type: "tool_selected", toolName: nextToolName };
 
